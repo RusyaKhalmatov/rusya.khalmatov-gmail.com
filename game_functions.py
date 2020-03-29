@@ -2,6 +2,7 @@ import sys
 import pygame
 from bullet import Bullet 
 from alient import Alient
+from time import sleep
 
 def check_keyup_events(event, ship):
     if event.key == pygame.K_RIGHT:
@@ -47,10 +48,19 @@ def bullet_delete(bullets):
         if bullet.rect.y <=0:
             bullets.remove(bullet)
 
-def update_bullets(bullets):
+def update_bullets(ai_settings, screen,ship, alients, bullets):
     #updates the position and deletes old bullets 
     bullets.update()
     bullet_delete(bullets)
+    #checking if the bullet collides with the alient
+    # in case of collision delete both objects
+    check_bullets_alien_collision(ai_settings, screen,ship, alients, bullets)
+
+def check_bullets_alien_collision(ai_settings, screen,ship, alients, bullets):
+    collisions = pygame.sprite.groupcollide(bullets,alients,True,True)
+    if len(alients) == 0:
+        bullets.empty()
+        create_fleet(ai_settings,screen,ship,alients)
 
 def fire_bullet(ai_settings, screen, ship, bullets):
     #Shot the bullet
@@ -64,17 +74,63 @@ def get_number_of_aliens_x(ai_settings,alient_width):
     number_alient_x = int(available_space_x/(2*alient_width))
     return number_alient_x
 
-def create_alient(ai_settings, screen, alients, alient_number):
+def create_alient(ai_settings, screen, alients, alient_number, row_number):
     alient = Alient(ai_settings,screen)
     alient_width = alient.rect.width
     alient.x = alient_width + 2 * alient_width * alient_number
     alient.rect.x = alient.x
+    alient.rect.y = alient.rect.height + 2 * alient.rect.height * row_number
     alients.add(alient)
 
-def create_fleet(ai_settings, screen, alients):
+def get_number_rows(ai_settings, ship_height, alient_height):
+    #defines the number of rows that can be displayed on the screen 
+    available_space_y = (ai_settings.screen_height - (3 * alient_height) - ship_height)
+    number_rows = int(available_space_y/(2*alient_height))
+    return number_rows  
+
+def create_fleet(ai_settings, screen, ship, alients):
     alient = Alient(ai_settings,screen)
     number_alient_x = get_number_of_aliens_x(ai_settings,alient.rect.width)
+    number_rows = get_number_rows(ai_settings, ship.rect.height, alient.rect.height)
     #creation of the first raw of aliens
-    for alient_number in range(number_alient_x):
-        create_alient(ai_settings,screen, alients,alient_number)
+    for row_number in range(number_rows):
+        for alient_number in range(number_alient_x):
+            create_alient(ai_settings,screen, alients,alient_number,row_number)
     
+
+
+def check_fleet_edges(ai_settings, alients):
+    #reacts if the alien reaches the edge
+    for alient in alients.sprites():
+        if alient.check_edge():
+            change_fleet_direction(ai_settings,alients)
+            break
+
+def change_fleet_direction(ai_settings, alients):
+    for alient in alients.sprites():
+        alient.rect.y += ai_settings.fleet_drop_speed
+    ai_settings.fleet_direction *= -1
+
+def update_alients(ai_settings,stats, screen, ship, alients, bullets):
+    check_fleet_edges(ai_settings, alients)
+    alients.update()
+    if pygame.sprite.spritecollideany(ship,alients):
+        ship_hit(ai_settings, stats, screen, ship, alients, bullets)
+
+def ship_hit(ai_settings, stats, screen, ship, alients, bullets):
+    #processes the collision ship and alien
+    stats.ships_left -= 1
+    
+    #clean the list of alients and bullets
+    alients.empty()
+    bullets.empty()
+
+    #creation of a new fleet and center the ship
+    create_fleet(ai_settings,screen,ship,alients)
+    ship.center_ship()
+
+    #Pause
+    sleep(0.5)
+
+    
+
